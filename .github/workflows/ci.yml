@@ -1,0 +1,99 @@
+name: ChandyStore CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: chandystore_db
+          POSTGRES_USER: runner
+          POSTGRES_PASSWORD: password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      rabbitmq:
+        image: rabbitmq:3-management-alpine
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Clang & Build Toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake
+
+      - name: Compile C++ Raft Engine
+        run: |
+          clang++ -O3 -fPIC -shared -std=c++17 -I./include src/chandystore.cpp -o libchandystore.dylib
+
+      - name: Run C++ Native Benchmarks
+        run: |
+          clang++ -O3 -std=c++17 -I./include benchmarks/bench_engine.cpp -L. -lchandystore -Wl,-rpath,. -o bench_engine
+          ./bench_engine
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Set up Java for Spark
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Install Python Dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Initialize PostgreSQL Schema
+        run: |
+          PGPASSWORD=password psql -h localhost -U runner -d chandystore_db -f sql/schema.sql
+
+      - name: Execute Pytest Suite
+        env:
+          POSTGRES_HOST: localhost
+          POSTGRES_PORT: 5432
+          POSTGRES_DB: chandystore_db
+          POSTGRES_USER: runner
+          POSTGRES_PASSWORD: password
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+          REDIS_DB: 5
+          RABBITMQ_HOST: localhost
+          RABBITMQ_PORT: 5672
+        run: |
+          pytest -v python/tests/test_chandystore.py
