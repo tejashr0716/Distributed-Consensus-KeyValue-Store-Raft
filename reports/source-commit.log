@@ -1,0 +1,20 @@
+[fix/verified-prototype-remediation 111672b] Fix prototype coordination safety, portable builds and honest live demos
+ 32 files changed, 539 insertions(+), 996 deletions(-)
+ create mode 100644 .dockerignore
+ create mode 100644 .gitignore
+ delete mode 100755 bench_engine
+ create mode 100644 benchmarks/run_real_http_benchmark.py
+ create mode 100644 docs/interview-guide.md
+ delete mode 100755 libchandystore.dylib
+ delete mode 100644 python/api/__pycache__/main.cpython-314.pyc
+ delete mode 100644 python/database/__pycache__/connection.cpython-314.pyc
+ delete mode 100644 python/services/__pycache__/cpp_bridge.cpython-314.pyc
+ delete mode 100644 python/services/__pycache__/rabbitmq_service.cpython-314.pyc
+ delete mode 100644 python/services/__pycache__/redis_service.cpython-314.pyc
+ delete mode 100644 python/spark/__pycache__/spark_consensus_audit.cpython-314.pyc
+ delete mode 100644 python/tests/__pycache__/test_chandystore.cpython-314-pytest-9.1.1.pyc
+ create mode 100644 requirements.lock
+ create mode 100755 scripts/build_native.sh
+ create mode 100644 sql/migrate_fencing.sql
+ create mode 100644 tests/test_remediation_http.py
+ create mode 100644 web/demo.html

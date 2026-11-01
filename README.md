@@ -87,3 +87,7 @@ psql -v ON_ERROR_STOP=1 --single-transaction -h "$POSTGRES_HOST" -p "$POSTGRES_P
 Do not run DDL upgrades concurrently with active workers. The migration adds the KV token column and advances—not rewinds—the token sequence above persisted tokens. The schema bootstrap also includes it; that is initialization, not an online migration framework.
 
 The key/value/client UTF-8 byte limits match C++ fixed buffers (63/127/63 bytes). Long or NUL-containing native-bound fields return 422. Native APIs are not a general untrusted-buffer interface.
+
+## Optional repeatable browser smoke test
+
+Install Playwright separately (not an application runtime dependency), install its Chromium browser and run `node benchmarks/check_browser.cjs` with BASE_URL set to the running gateway. Set CHROMIUM_PATH if using system Chromium. The test performs actual API actions in `/demo`, requires WebSocket events, checks page errors and mobile overflow, and writes screenshots plus JSON to reports/. It uses a disposable resource and can create synthetic telemetry alerts.

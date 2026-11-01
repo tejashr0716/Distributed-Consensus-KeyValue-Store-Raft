@@ -1,0 +1,11 @@
+[
+  {
+    "project": "chandystore",
+    "apiActionsPassed": true,
+    "webSocketConnected": true,
+    "webSocketEventsObserved": true,
+    "pageErrors": [],
+    "mobileOverflow": false,
+    "health": "{\"status\":\"DEGRADED\",\"database\":\"reachable\",\"native_engine\":\"loaded\",\"broker\":\"unavailable\",\"scope\":\"local educational prototype; no replication guarantee\"}"
+  }
+]

@@ -1,0 +1,15 @@
+========================================================
+   ChandyStore C++ CPU-only validation microbenchmark      
+========================================================
+
+>> CRC32 Verification Throughput: 0.98 Million entries/sec (1016.27 ns/op)
+Attempted: 3000000 Successful: 3000000 Failed: 0
+>> Local quorum validation + advancement:  0.70 Million commits/sec (1434.76 ns/op)
+>> Local non-atomic token increment:  65.88 Million local tokens/sec (15.18 ns/op)
+
+Consensus Final State:
+  Current Term:   1
+  Commit Index:   3000000
+  Fencing Token:  3001000
+========================================================
+CRC sink: 0 (zero is possible after XOR)

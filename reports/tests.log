@@ -1,0 +1,4 @@
+..........s........                                                      [100%]
+=========================== short test summary info ============================
+SKIPPED [1] python/tests/test_chandystore.py:146: Optional Spark dependency not installed
+18 passed, 1 skipped in 1.75s
