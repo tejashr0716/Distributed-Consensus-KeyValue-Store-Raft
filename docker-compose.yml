@@ -1,15 +1,13 @@
-version: '3.8'
 
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: chandystore-postgres
     environment:
       POSTGRES_DB: chandystore_db
       POSTGRES_USER: chandystore_user
       POSTGRES_PASSWORD: chandystore_secret
     ports:
-      - "5432:5432"
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5540}:5432"
     volumes:
       - ./sql/schema.sql:/docker-entrypoint-initdb.d/init.sql
       - pgdata:/var/lib/postgresql/data
@@ -21,9 +19,8 @@ services:
 
   redis:
     image: redis:7-alpine
-    container_name: chandystore-redis
     ports:
-      - "6379:6379"
+      - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
     command: redis-server --appendonly yes
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
@@ -33,10 +30,9 @@ services:
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
-    container_name: chandystore-rabbitmq
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      - "127.0.0.1:${RABBITMQ_HOST_PORT:-5673}:5672"
+      - "127.0.0.1:${RABBITMQ_UI_PORT:-15673}:15672"
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "ping"]
       interval: 10s
@@ -47,7 +43,6 @@ services:
     build:
       context: .
       dockerfile: docker/Dockerfile
-    container_name: chandystore-gateway
     depends_on:
       postgres:
         condition: service_healthy
@@ -56,7 +51,7 @@ services:
       rabbitmq:
         condition: service_healthy
     ports:
-      - "8000:8000"
+      - "127.0.0.1:${GATEWAY_PORT:-8000}:8000"
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432

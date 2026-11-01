@@ -9,6 +9,19 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
+    env:
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+      POSTGRES_DB: chandystore_db
+      POSTGRES_USER: runner
+      POSTGRES_PASSWORD: password
+      REDIS_HOST: 127.0.0.1
+      REDIS_PORT: 6379
+      RABBITMQ_HOST: 127.0.0.1
+      BASE_URL: http://127.0.0.1:8010
+      SECOND_BASE_URL: http://127.0.0.1:8012
+      TEST_DATABASE_URL: postgresql://runner:password@127.0.0.1:5432/chandystore_db
+      PYTHONPATH: .
 
     services:
       postgres:
@@ -54,9 +67,9 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y clang cmake
 
-      - name: Compile C++ Raft Engine
+      - name: Compile C++ validation engine
         run: |
-          clang++ -O3 -fPIC -shared -std=c++17 -I./include src/chandystore.cpp -o libchandystore.dylib
+          clang++ -O3 -fPIC -shared -std=c++17 -I./include src/chandystore.cpp -pthread -o libchandystore.so
 
       - name: Run C++ Native Benchmarks
         run: |
@@ -66,7 +79,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.13"
 
       - name: Set up Java for Spark
         uses: actions/setup-java@v4
@@ -83,17 +96,26 @@ jobs:
         run: |
           PGPASSWORD=password psql -h localhost -U runner -d chandystore_db -f sql/schema.sql
 
-      - name: Execute Pytest Suite
-        env:
-          POSTGRES_HOST: localhost
-          POSTGRES_PORT: 5432
-          POSTGRES_DB: chandystore_db
-          POSTGRES_USER: runner
-          POSTGRES_PASSWORD: password
-          REDIS_HOST: localhost
-          REDIS_PORT: 6379
-          REDIS_DB: 5
-          RABBITMQ_HOST: localhost
-          RABBITMQ_PORT: 5672
+      - name: Start local HTTP gateway
         run: |
-          pytest -v python/tests/test_chandystore.py
+          uvicorn python.api.main:app --host 127.0.0.1 --port 8010 > /tmp/gateway.log 2>&1 &
+          uvicorn python.api.main:app --host 127.0.0.1 --port 8012 > /tmp/gateway-second.log 2>&1 &
+          python - <<'WAIT'
+          import os, time, urllib.request
+          for _ in range(60):
+              try:
+                  urllib.request.urlopen(os.environ['BASE_URL'] + '/health',timeout=2)
+                  break
+              except Exception:
+                  time.sleep(1)
+          else:
+              raise SystemExit('Gateway failed to start')
+          WAIT
+      - name: Execute native, database and real HTTP tests
+        run: pytest -v python/tests tests --junitxml=reports/ci-tests.xml
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-evidence
+          path: reports/ci-tests.xml

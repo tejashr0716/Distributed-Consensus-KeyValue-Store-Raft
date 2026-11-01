@@ -7,10 +7,10 @@
 
 int main() {
     std::cout << "========================================================\n";
-    std::cout << "   ChandyStore C++ Raft Consensus & Lock Benchmark      \n";
+    std::cout << "   ChandyStore C++ CPU-only validation microbenchmark      \n";
     std::cout << "========================================================\n\n";
 
-    RaftClusterState state;
+    RaftClusterState state{};
     state.current_term = 1;
     state.commit_index = 0;
     state.last_applied = 0;
@@ -20,7 +20,7 @@ int main() {
     state.next_fencing_token = 1000;
 
     const int N = 3000000;
-    RaftLogEntry entry;
+    RaftLogEntry entry{};
     entry.log_index = 100;
     entry.term = 1;
     entry.command_type = 1; // SET
@@ -31,7 +31,7 @@ int main() {
 
     // 1. CRC32 Calculation Throughput
     auto start = std::chrono::high_resolution_clock::now();
-    uint32_t dummy_crc = 0;
+    volatile uint32_t dummy_crc = 0;
     for (int i = 0; i < N; ++i) {
         dummy_crc ^= compute_entry_crc32(&entry);
     }
@@ -49,14 +49,19 @@ int main() {
     int32_t committed = 0;
     for (int i = 0; i < N; ++i) {
         entry.log_index = i + 1;
+        entry.crc32 = compute_entry_crc32(&entry);
         committed += verify_and_append_log(&state, &entry, 3);
     }
     end = std::chrono::high_resolution_clock::now();
+    if (committed != N || state.commit_index != N || state.last_applied != N) {
+        std::cerr << "CORRECTNESS FAILURE\n"; return 2;
+    }
+    std::cout << "Attempted: " << N << " Successful: " << committed << " Failed: " << N-committed << "\n";
     double quorum_sec = std::chrono::duration<double>(end - start).count();
     double quorum_ops = (double)N / quorum_sec;
     double quorum_ns = (quorum_sec / (double)N) * 1e9;
 
-    std::cout << ">> Quorum Log Commit Throughput:  " << std::fixed << std::setprecision(2)
+    std::cout << ">> Local quorum validation + advancement:  " << std::fixed << std::setprecision(2)
               << (quorum_ops / 1e6) << " Million commits/sec ("
               << quorum_ns << " ns/op)\n";
 
@@ -71,8 +76,8 @@ int main() {
     double lock_ops = (double)N / lock_sec;
     double lock_ns = (lock_sec / (double)N) * 1e9;
 
-    std::cout << ">> Distributed Lock Acquisition:  " << std::fixed << std::setprecision(2)
-              << (lock_ops / 1e6) << " Million locks/sec ("
+    std::cout << ">> Local non-atomic token increment:  " << std::fixed << std::setprecision(2)
+              << (lock_ops / 1e6) << " Million local tokens/sec ("
               << lock_ns << " ns/op)\n";
 
     std::cout << "\nConsensus Final State:\n";
@@ -81,5 +86,6 @@ int main() {
     std::cout << "  Fencing Token:  " << lres.fencing_token << "\n";
     std::cout << "========================================================\n";
 
+    std::cout << "CRC sink: " << dummy_crc << " (zero is possible after XOR)\n";
     return 0;
 }

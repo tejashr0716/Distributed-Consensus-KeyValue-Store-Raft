@@ -1,0 +1,10 @@
+
+__pycache__/
+*.pyc
+*.so
+*.dylib
+.venv/
+
+build/
+bench_engine
+reports/server*.log

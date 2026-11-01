@@ -1,5 +1,6 @@
 import ctypes
 import os
+import sys
 from typing import Dict, Any, Optional
 
 class CRaftLogEntry(ctypes.Structure):
@@ -42,7 +43,8 @@ class ChandyStoreEngine:
     def __init__(self, dylib_path: Optional[str] = None):
         if dylib_path is None:
             base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            dylib_path = os.path.join(base_dir, "libchandystore.dylib")
+            suffix = ".dylib" if sys.platform == "darwin" else ".so"
+            dylib_path = os.getenv("NATIVE_LIBRARY_PATH", os.path.join(base_dir, "libchandystore" + suffix))
 
         if not os.path.exists(dylib_path):
             raise FileNotFoundError(f"Shared library not found at: {dylib_path}")

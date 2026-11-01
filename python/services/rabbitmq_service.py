@@ -22,7 +22,8 @@ async def init_rabbitmq():
             host=RABBITMQ_HOST,
             port=RABBITMQ_PORT,
             login=RABBITMQ_USER,
-            password=RABBITMQ_PASSWORD
+            password=RABBITMQ_PASSWORD,
+            timeout=3
         )
         channel = await connection.channel()
         exchange = await channel.declare_exchange("chandystore.events", aio_pika.ExchangeType.TOPIC, durable=True)

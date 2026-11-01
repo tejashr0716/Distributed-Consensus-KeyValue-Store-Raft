@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>chandystore Local Backend Demo</title>
+<style>*{box-sizing:border-box}html{overflow-wrap:anywhere}input,select,button{max-width:100%}body{font:16px system-ui;background:#101828;color:#eaf0ff;max-width:1000px;margin:auto;padding:24px}label{display:block;margin:12px 0}input,select,button{font:inherit;padding:10px;margin:5px;border-radius:5px}pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#172b40;padding:15px;max-height:440px;overflow:auto}aside{padding:16px;background:#593d13}button{cursor:pointer}</style>
+<h1>chandystore — real local API demonstration</h1><aside>Local educational prototype. No authentication: never expose this server publicly. This page uses same-origin API and WebSocket connections, not browser simulation. PostgreSQL-backed single-authority coordination; no autonomous Raft replication.</aside>
+<p id="health">Checking database/native engine…</p><p id="socket">WebSocket connecting…</p>
+<label>Resource key <input id="resource" value="demo:stock"></label>
+<label>Client <input id="client" value="worker-a"></label><label>Value <input id="value" value="100"></label>
+<button id="acquire">Acquire 10-second lease</button><button id="write">Fenced write</button>
+<button id="read">Read key</button><button id="release">Release</button> <button id="refresh">Refresh backend state</button><h2>Actual API responses and live events</h2><pre id="events" aria-live="polite"></pre>
+<script>
+const lines=[];function log(data){lines.push(JSON.stringify(data,null,2));if(lines.length>100)lines.shift();const el=document.querySelector('#events');el.textContent=lines.join('\n');el.scrollTop=el.scrollHeight;}
+async function api(path,data){const r=await fetch(path,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{});const body=await r.json();if(!r.ok)throw Error(r.status+' '+JSON.stringify(body));return body;}
+const resource=()=>document.querySelector('#resource').value;
+const client=()=>document.querySelector('#client').value;
+let held=null;
+async function acquire(){const data=await api('/api/v1/locks/acquire',{lock_name:resource(),client_id:client(),lease_ms:10000}); held={resource:resource(),client:client(),token:data.fencing_token}; log(data);}
+async function write(){if(!held||held.resource!==resource()||held.client!==client())throw Error('Acquire a matching lease first');log(await api('/api/v1/kv/set',{key:resource(),client_id:client(),value:document.querySelector('#value').value,fencing_token:held.token}));}
+async function read(){log(await api('/api/v1/kv/'+encodeURIComponent(resource())));}
+async function release(){if(!held)throw Error('No local lease token');log(await api('/api/v1/locks/release',{lock_name:held.resource,client_id:held.client,fencing_token:held.token})); held=null;}
+for(const [id,fn] of Object.entries({acquire,write,read,release}))document.getElementById(id).onclick=()=>fn().catch(e=>log({error:e.message}));
+async function refresh(){log(await api('/api/v1/cluster'));}
+let socket,timer,attempt=0,stopped=false;
+function connect(){socket=new WebSocket((location.protocol==='https:'?'wss:':'ws:')+'//'+location.host+'/ws/consensus');socket.onopen=()=>{attempt=0;document.querySelector('#socket').textContent='WebSocket connected (events from this gateway process)';};socket.onmessage=e=>{try{log({source:'websocket',event:JSON.parse(e.data)});}catch{log({error:'Invalid websocket JSON'});}};socket.onerror=()=>socket.close();socket.onclose=()=>{document.querySelector('#socket').textContent='WebSocket disconnected — retrying';if(!stopped&&attempt++<10)timer=setTimeout(connect,Math.min(10000,500*2**Math.min(attempt,5))+Math.random()*250);};}
+window.addEventListener('pagehide',()=>{stopped=true;clearTimeout(timer);socket?.close();});
+document.querySelector('#refresh').onclick=()=>refresh().catch(e=>log({error:e.message}));
+api('/health').then(h=>{document.querySelector('#health').textContent=JSON.stringify(h);return refresh();}).catch(e=>{document.querySelector('#health').textContent='Backend error: '+e.message;});connect();
+</script></html>

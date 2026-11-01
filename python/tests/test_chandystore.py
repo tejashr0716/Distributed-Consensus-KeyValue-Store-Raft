@@ -8,7 +8,6 @@ from python.api.main import app
 from python.services.cpp_bridge import ChandyStoreEngine
 from python.database.connection import close_db_pool
 from python.services.redis_service import init_redis, set_node_heartbeat, is_node_active, close_redis
-from python.spark.spark_consensus_audit import run_consensus_audit
 
 @pytest.fixture(scope="module")
 def cpp_engine():
@@ -75,7 +74,7 @@ async def test_redis_node_heartbeat():
 async def test_api_health(async_client):
     resp = await async_client.get("/health")
     assert resp.status_code == 200
-    assert resp.json()["status"] == "HEALTHY"
+    assert resp.json()["database"] == "reachable"
 
 @pytest.mark.asyncio
 async def test_api_cluster_state(async_client):
@@ -96,7 +95,7 @@ async def test_api_consensus_set_and_get(async_client):
     set_resp = await async_client.post("/api/v1/kv/set", json=set_payload)
     assert set_resp.status_code == 201
     set_data = set_resp.json()
-    assert set_data["quorum_committed"] is True
+    assert set_data["quorum_simulated"] is True
     assert set_data["crc32"] != 0
 
     get_resp = await async_client.get("/api/v1/kv/feature:dark_mode")
@@ -121,7 +120,7 @@ async def test_api_distributed_lock_lifecycle(async_client):
     assert conf_resp.status_code == 409
 
     # Client 1 Release with Fencing Token
-    rel_resp = await async_client.post("/api/v1/locks/release", json={"lock_name": lock_name, "fencing_token": token})
+    rel_resp = await async_client.post("/api/v1/locks/release", json={"lock_name": lock_name, "client_id": "PAYMENT_WORKER_01", "fencing_token": token})
     assert rel_resp.status_code == 200
 
     # Client 2 Re-acquire
@@ -144,6 +143,8 @@ async def test_api_cluster_election(async_client):
     assert cluster_resp.json()["leader_id"] == "raft-node-2"
 
 def test_spark_consensus_audit(tmp_path):
+    pytest.importorskip("pyspark", reason="Optional Spark dependency not installed")
+    from python.spark.spark_consensus_audit import run_consensus_audit
     input_file = str(tmp_path / "raft_logs.json")
     output_report = str(tmp_path / "audit_report.json")
 

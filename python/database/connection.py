@@ -29,7 +29,9 @@ async def init_db_pool() -> asyncpg.Pool:
             port=DB_PORT,
             password=DB_PASSWORD if DB_PASSWORD else None,
             min_size=2,
-            max_size=20
+            max_size=20,
+            timeout=10,
+            command_timeout=15
         )
     return pool
 

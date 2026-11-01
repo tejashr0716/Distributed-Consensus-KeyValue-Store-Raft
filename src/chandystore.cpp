@@ -2,10 +2,12 @@
 #include <cstring>
 #include <algorithm>
 #include <cstdio>
+#include <mutex>
+#include <limits>
 
 // Standard CRC32 table
 static uint32_t crc32_tab[256];
-static bool crc_tab_initialized = false;
+static std::once_flag crc_init_once;
 
 static void init_crc32_table() {
     for (uint32_t i = 0; i < 256; i++) {
@@ -15,11 +17,11 @@ static void init_crc32_table() {
         }
         crc32_tab[i] = c;
     }
-    crc_tab_initialized = true;
+
 }
 
 static uint32_t calc_crc32(const uint8_t* buf, size_t len) {
-    if (!crc_tab_initialized) init_crc32_table();
+    std::call_once(crc_init_once, init_crc32_table);
     uint32_t c = 0xFFFFFFFFL;
     for (size_t i = 0; i < len; i++) {
         c = crc32_tab[(c ^ buf[i]) & 0xFF] ^ (c >> 8);
@@ -74,7 +76,11 @@ void acquire_distributed_lock(RaftClusterState* state, const char* lock_name, co
         state->next_fencing_token = 1000;
     }
 
-    // Generate atomic monotonic fencing token (Martin Kleppmann fencing token pattern)
+    // Single-thread local demonstration only. API tokens are allocated by PostgreSQL.
+    if (state->next_fencing_token == std::numeric_limits<int64_t>::max()) {
+        std::strncpy(out_result->error_message, "Token exhausted", sizeof(out_result->error_message)-1);
+        return;
+    }
     int64_t token = ++(state->next_fencing_token);
 
     out_result->success = 1;
