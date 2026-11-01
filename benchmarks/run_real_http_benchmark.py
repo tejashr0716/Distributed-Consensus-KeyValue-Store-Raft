@@ -10,6 +10,14 @@ BASE=os.getenv('BASE_URL',f'http://127.0.0.1:{DEFAULT_PORT}')
 if urlparse(BASE).hostname not in ('127.0.0.1','localhost','::1'):
     raise SystemExit('Safety: benchmark accepts loopback targets only')
 N=int(os.getenv('BENCH_REQUESTS','200')); CONCURRENCY=int(os.getenv('BENCH_CONCURRENCY','10'));TRIALS=3
+def git_info():
+ try:
+  cwd=Path(__file__).resolve().parents[1]
+  commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=cwd,text=True,stderr=subprocess.DEVNULL).strip()
+  dirty=bool(subprocess.check_output(['git','status','--porcelain'],cwd=cwd,stderr=subprocess.DEVNULL))
+  return commit,dirty
+ except (OSError,subprocess.CalledProcessError):
+  return 'unversioned-source-export',None
 async def main():
  raw=[]; summaries=[]; runid=uuid.uuid4().hex[:12]
  async with httpx.AsyncClient(base_url=BASE,timeout=30) as c:
@@ -40,6 +48,7 @@ async def main():
     for q,label in [(.95,'p95_success_ms'),(.99,'p99_success_ms')]:summary[label]=ok[math.ceil(len(ok)*q)-1] if ok else None
     if scenario=='contention':summary['one_holder_observed']=(len(ok)==1 and all(x['status'] in (200,409) for x in samples))
     summaries.append(summary);print(json.dumps(summary),flush=True)
- report={'project':PROJECT,'base_url':BASE,'boundary':'client HTTP POST/full response over loopback TCP to Uvicorn; includes API work, not pure network latency','platform':platform.platform(),'python':platform.python_version(),'concurrency':CONCURRENCY,'trials':TRIALS,'warmups_per_trial_except_contention':10,'health':health,'source_commit':subprocess.check_output(['git','rev-parse','HEAD'],cwd=Path(__file__).resolve().parents[1],text=True).strip(),'working_tree_dirty':bool(subprocess.check_output(['git','status','--porcelain'],cwd=Path(__file__).resolve().parents[1])),'summaries':summaries,'raw_samples':raw,'caveat':'Synthetic local workload; data and unique lock rows are retained. Broker state is reported; no durable message-delivery guarantee.'}
+ commit,dirty=git_info()
+ report={'project':PROJECT,'base_url':BASE,'boundary':'client HTTP POST/full response over loopback TCP to Uvicorn; includes API work, not pure network latency','platform':platform.platform(),'python':platform.python_version(),'concurrency':CONCURRENCY,'trials':TRIALS,'warmups_per_trial_except_contention':10,'health':health,'source_commit':commit,'working_tree_dirty':dirty,'summaries':summaries,'raw_samples':raw,'caveat':'Synthetic local workload; data and unique lock rows are retained. Broker state is reported; no durable message-delivery guarantee.'}
  out=Path(__file__).resolve().parents[1]/'reports/real-http-benchmark.json';out.parent.mkdir(exist_ok=True);out.write_text(json.dumps(report,indent=2))
 if __name__=='__main__':asyncio.run(main())
